@@ -1,0 +1,113 @@
+name: card-queue
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://cardqueue:cardqueue@postgres:5432/cardqueue
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+x-app-dependencies: &app-dependencies
+  postgres:
+    condition: service_healthy
+  kafka:
+    condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: cardqueue
+      POSTGRES_USER: cardqueue
+      POSTGRES_PASSWORD: cardqueue
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-U", "cardqueue", "-d", "cardqueue"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      target: api
+    environment: *app-environment
+    depends_on: *app-dependencies
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: on-failure
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment: *app-environment
+    depends_on: *app-dependencies
+    restart: on-failure
+
+  ui:
+    build:
+      context: .
+      target: ui
+    environment:
+      API_URL: http://api:8000
+      SWAGGER_URL: http://localhost:8000/docs
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      - api
+
+  dagster:
+    build:
+      context: .
+      target: dagster
+    environment:
+      DATABASE_URL: postgresql://cardqueue:cardqueue@postgres:5432/cardqueue
+      DAGSTER_HOME: /dagster
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - dagster-data:/dagster
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  kafka-data:
+  dagster-data:
+  grafana-data:

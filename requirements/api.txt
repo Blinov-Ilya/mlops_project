@@ -1,0 +1,5 @@
+fastapi==0.115.12
+kafka-python==2.2.15
+psycopg[binary]==3.2.9
+pydantic==2.11.7
+uvicorn==0.34.3

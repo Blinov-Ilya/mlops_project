@@ -1,0 +1,36 @@
+{
+  "uid": "card-queue",
+  "title": "Card Queue",
+  "schemaVersion": 41,
+  "version": 1,
+  "timezone": "utc",
+  "time": { "from": "now-7d/d", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Daily tickets by queue",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 11 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "card-queue-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "card-queue-postgres" },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT day::timestamp AT TIME ZONE 'UTC' AS time, category AS metric, ticket_count AS value FROM daily_category_counts WHERE $__timeFilter(day::timestamp AT TIME ZONE 'UTC') ORDER BY time, metric"
+        }
+      ]
+    }
+  ]
+}
